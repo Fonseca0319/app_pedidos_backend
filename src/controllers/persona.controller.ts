@@ -1,3 +1,4 @@
+import { service } from '@loopback/core';
 import {
   Count,
   CountSchema,
@@ -17,13 +18,21 @@ import {
   requestBody,
   response,
 } from '@loopback/rest';
+//import fetch from 'node-fetch';
 import {Persona} from '../models';
 import {PersonaRepository} from '../repositories';
+import { AutenticacionService } from '../services';
+//const Fetch = require("node-fetch")
+import { RequestInfo, RequestInit } from 'node-fetch';
+const fetch = (url: RequestInfo, init?: RequestInit) =>
+import('node-fetch').then(({ default: fetch }) => fetch(url, init));
 
 export class PersonaController {
   constructor(
     @repository(PersonaRepository)
-    public personaRepository : PersonaRepository,
+    public  personaRepository : PersonaRepository, 
+    @service(AutenticacionService)
+    public servicoAutenticacion: AutenticacionService
   ) {}
 
   @post('/personas')
@@ -44,8 +53,23 @@ export class PersonaController {
     })
     persona: Omit<Persona, 'id'>,
   ): Promise<Persona> {
-    return this.personaRepository.create(persona);
-  }
+    let clave = this.servicoAutenticacion.GeneradorClave();
+    let claveCifrada = this.servicoAutenticacion.CifrarClave(clave);
+    persona.clave = claveCifrada;
+    let p = await this.personaRepository.create(persona);
+   
+    
+    //notificacion del usuario
+    let destino = persona.correo;
+    let asunto = 'Registro en la Plataforma';
+    let contenido = `Hola ${persona.nombres}, su nombre de usuario es: ${persona.correo} y su contraseña es: ${clave}.`;
+    fetch(`http://127.0.0.1:5000/envio-correo?correo_destino=${destino}&asunto=${asunto}&contenido=${contenido}`)
+    .then((data:any) => {
+      console.log(data);
+   
+  })
+return p;
+}
 
   @get('/personas/count')
   @response(200, {
@@ -147,4 +171,4 @@ export class PersonaController {
   async deleteById(@param.path.string('id') id: string): Promise<void> {
     await this.personaRepository.deleteById(id);
   }
-}
+};
